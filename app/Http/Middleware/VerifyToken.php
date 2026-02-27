@@ -3,13 +3,12 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
 class VerifyToken
 {
-    public function handle(Request $request, Closure $next)
+    public function handle($request, Closure $next)
     {
         $header = $request->header('Authorization');
 
@@ -20,14 +19,10 @@ class VerifyToken
         $token = str_replace('Bearer ', '', $header);
 
         try {
-            $publicKey = file_get_contents(env('PUBLIC_KEY'));
+            $publicKey = file_get_contents(storage_path('oauth-public.key'));
 
             $decoded = JWT::decode($token, new Key($publicKey, 'RS256'));
 
-            /**
-             * MUHIM JOY ✅
-             * Token ichidagi user ma’lumotini request’ga qo‘shamiz
-             */
             $request->merge([
                 'auth_user' => [
                     'id'    => $decoded->sub ?? null,
@@ -37,13 +32,9 @@ class VerifyToken
             ]);
 
         } catch (\Throwable $e) {
-            return response()->json([
-                'error' => 'Invalid token'
-            ], 401);
+            return response()->json(['error' => 'Invalid token'], 401);
         }
 
         return $next($request);
     }
 }
-
-
