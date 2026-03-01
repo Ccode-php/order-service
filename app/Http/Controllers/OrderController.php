@@ -36,7 +36,7 @@ class OrderController extends Controller
             $variantRes = Http::withHeaders([
                 'Authorization' => $request->header('Authorization')
             ])->get(
-                env('PRODUCT_SERVICE_URL') . "/api/variants/{$item['variant_id']}"
+                env('PRODUCT_SERVICE_URL') . "/api/product/variants/{$item['variant_id']}"
             );
 
             if (!$variantRes->ok()) {
@@ -105,7 +105,7 @@ class OrderController extends Controller
                     'Authorization' => $request->header('Authorization')
                 ])->post(
                     env('PRODUCT_SERVICE_URL') .
-                        "/api/variants/{$item->variant_id}/decrease-stock",
+                        "/api/product/variants/{$item->variant_id}/decrease-stock",
                     [
                         'quantity' => $item->quantity
                     ]
