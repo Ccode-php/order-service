@@ -8,11 +8,25 @@ use App\Models\Order;
 
 class OrderController extends Controller
 {
-    public function index()
+    /*
+    |--------------------------------------------------------------------------
+    | USER: Order list
+    |--------------------------------------------------------------------------
+    */
+    public function index(Request $request)
     {
-        return Order::with('items')->get();
+        $user = $request->get('auth_user');
+
+        return Order::with('items')
+            ->where('user_id', $user['id'])
+            ->get();
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | USER: Create Order
+    |--------------------------------------------------------------------------
+    */
     public function store(Request $request)
     {
         $user = $request->get('auth_user');
@@ -32,7 +46,6 @@ class OrderController extends Controller
 
         foreach ($request->items as $item) {
 
-            // 1️⃣ Faqat stockni TEKSHIRAMIZ
             $variantRes = Http::withHeaders([
                 'Authorization' => $request->header('Authorization')
             ])->get(
@@ -60,20 +73,15 @@ class OrderController extends Controller
             ];
         }
 
-        // 2️⃣ Order yaratamiz (pending)
         $order = Order::create([
             'user_id' => $user['id'],
             'total_price' => $total,
             'status' => 'pending',
         ]);
 
-        // 3️⃣ Order itemlarni saqlaymiz
         foreach ($orderItems as $oi) {
             $order->items()->create($oi);
         }
-
-        // ❌ PAYMENT YO‘Q
-        // ❌ STOCK KAMAYTIRISH YO‘Q
 
         return response()->json([
             'message' => 'Order created',
@@ -81,59 +89,11 @@ class OrderController extends Controller
         ], 201);
     }
 
-    /**
-     * Payment SUCCESS bo‘lganda chaqiriladi
-     */
-
-
-    public function markAsPaid(Request $request, $id)
-    {
-        $order = Order::with('items')->find($id);
-
-        if (!$order) {
-            return response()->json(['error' => 'Order not found'], 404);
-        }
-
-        try {
-            // 1️⃣ ORDER PAID
-            $order->update(['status' => 'paid']);
-
-            // 2️⃣ STOCK DECREASE
-            foreach ($order->items as $item) {
-
-                $res = Http::withHeaders([
-                    'Authorization' => $request->header('Authorization')
-                ])->post(
-                    env('PRODUCT_SERVICE_URL') .
-                        "/api/product/variants/{$item->variant_id}/decrease-stock",
-                    [
-                        'quantity' => $item->quantity
-                    ]
-                );
-
-                if (!$res->ok()) {
-                    throw new \Exception('Stock decrease failed');
-                }
-            }
-
-            return ['success' => true];
-        } catch (\Throwable $e) {
-
-            // 🧯 ROLLBACK
-            $order->update(['status' => 'cancelled']);
-
-            // payment service’ga xabar beramiz
-            Http::post(
-                env('PAYMENT_SERVICE_URL') .
-                    "/api/payments/{$order->id}/refund"
-            );
-
-            return response()->json([
-                'error' => 'Order rollback executed'
-            ], 500);
-        }
-    }
-
+    /*
+    |--------------------------------------------------------------------------
+    | INTERNAL: Order total
+    |--------------------------------------------------------------------------
+    */
     public function getOrderTotal($id)
     {
         $order = Order::find($id);
@@ -149,5 +109,49 @@ class OrderController extends Controller
             'total'    => $order->total_price,
             'status'   => $order->status,
         ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | INTERNAL: Mark as paid
+    |--------------------------------------------------------------------------
+    */
+    public function markAsPaid(Request $request, $id)
+    {
+        $order = Order::with('items')->find($id);
+
+        if (!$order) {
+            return response()->json(['error' => 'Order not found'], 404);
+        }
+
+        try {
+
+            $order->update(['status' => 'paid']);
+
+            foreach ($order->items as $item) {
+
+                $res = Http::post(
+                    env('PRODUCT_SERVICE_URL') .
+                        "/api/product/variants/{$item->variant_id}/decrease-stock",
+                    [
+                        'quantity' => $item->quantity
+                    ]
+                );
+
+                if (!$res->ok()) {
+                    throw new \Exception('Stock decrease failed');
+                }
+            }
+
+            return response()->json(['success' => true]);
+
+        } catch (\Throwable $e) {
+
+            $order->update(['status' => 'cancelled']);
+
+            return response()->json([
+                'error' => 'Order rollback executed'
+            ], 500);
+        }
     }
 }
