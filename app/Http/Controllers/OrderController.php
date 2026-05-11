@@ -130,9 +130,9 @@ class OrderController extends Controller
 
             foreach ($order->items as $item) {
 
-                $res = Http::post(
+                $res = Http::withToken($serviceToken)->post(
                     env('PRODUCT_SERVICE_URL') .
-                        "/api/product/variants/{$item->variant_id}/decrease-stock",
+                    "/api/product/variants/{$item->variant_id}/decrease-stock",
                     [
                         'quantity' => $item->quantity
                     ]
