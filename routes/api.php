@@ -5,23 +5,30 @@ use App\Http\Controllers\OrderController;
 
 /*
 |--------------------------------------------------------------------------
-| USER ROUTES (JWT bilan)
+| USER ROUTES
 |--------------------------------------------------------------------------
 */
+
 Route::middleware('verify.token')->group(function () {
 
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders', [OrderController::class, 'index']);
-});
+    Route::post(
+        '/orders',
+        [OrderController::class, 'store']
+    );
 
+    Route::get(
+        '/orders',
+        [OrderController::class, 'index']
+    );
+});
 
 /*
 |--------------------------------------------------------------------------
-| INTERNAL ROUTES (Service-to-Service)
+| INTERNAL ROUTES
 |--------------------------------------------------------------------------
-| Faqat client_credentials token bilan ishlaydi
 */
-Route::middleware('client')->group(function () {
+
+Route::middleware('verify.service.token')->group(function () {
 
     Route::get(
         '/internal/orders/{id}/total',
