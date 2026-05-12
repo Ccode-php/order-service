@@ -121,36 +121,55 @@ class OrderController extends Controller
         $order = Order::with('items')->find($id);
 
         if (!$order) {
-            return response()->json(['error' => 'Order not found'], 404);
+            return response()->json([
+                'error' => 'Order not found'
+            ], 404);
         }
+
+        /*
+    |--------------------------------------------------------------------------
+    | PAYMENT SERVICEDAN KELGAN SERVICE TOKEN
+    |--------------------------------------------------------------------------
+    */
+
+        $serviceToken = $request->bearerToken();
 
         try {
 
-            $order->update(['status' => 'paid']);
+            $order->update([
+                'status' => 'paid'
+            ]);
 
             foreach ($order->items as $item) {
 
                 $res = Http::withToken($serviceToken)->post(
                     env('PRODUCT_SERVICE_URL') .
-                    "/api/product/variants/{$item->variant_id}/decrease-stock",
+                        "/api/product/variants/{$item->variant_id}/decrease-stock",
                     [
                         'quantity' => $item->quantity
                     ]
                 );
 
                 if (!$res->ok()) {
-                    throw new \Exception('Stock decrease failed');
+
+                    throw new \Exception(
+                        'Stock decrease failed: ' . $res->body()
+                    );
                 }
             }
 
-            return response()->json(['success' => true]);
-
+            return response()->json([
+                'success' => true
+            ]);
         } catch (\Throwable $e) {
 
-            $order->update(['status' => 'cancelled']);
+            $order->update([
+                'status' => 'cancelled'
+            ]);
 
             return response()->json([
-                'error' => 'Order rollback executed'
+                'error' => 'Order rollback executed',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
